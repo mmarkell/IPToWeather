@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System.Net.Http;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 namespace mm116.Function
 {
   public static class HttpTriggerIPToWeather
@@ -21,31 +22,57 @@ namespace mm116.Function
         ILogger log)
     {
       log.LogInformation("C# HTTP trigger function processed a request.");
-
-      string IP = req.Query["IP"];
-
-      string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-      dynamic data = JsonConvert.DeserializeObject(requestBody);
-      IP = IP ?? data?.IP;
-
-      log.LogInformation("getting IP");
-      IP = await GetLongitudeAndLatitude(IP);
-
-      return IP != null
-          ? (ActionResult)new OkObjectResult($"Hello, {IP}")
-          : new BadRequestObjectResult("Please pass an IP in the request body");
+      string IP = "107.77.211.143";
+      if (req.Query.ContainsKey("IP"))
+      {
+        IP = req.Query["IP"];
+      }
+      log.LogInformation($"getting IP {IP}");
+      var long_and_lat = await GetLongitudeAndLatitude(IP, log);
+      string latitude = long_and_lat["latitude"];
+      string longitude = long_and_lat["longitude"];
+      string weather = await GetWeather(latitude, longitude);
+      log.LogInformation($"Weather: {weather}, longitude: {longitude}, latitude: {latitude}");
+      return (ActionResult)new OkObjectResult($"Weather: {weather}, longitude: {longitude}, latitude: {latitude}");
     }
-    public static async Task<string> GetLongitudeAndLatitude(string IP)
+    public static async Task<Dictionary<string, string>> GetLongitudeAndLatitude(string IP, ILogger log)
     {
-      IP = "107.77.211.143" + "?access_key=8c679b0f90031df872029b7eda9a590c";
+      IP = IP + "?access_key=8c679b0f90031df872029b7eda9a590c";
       string url = "http://api.ipstack.com/" + IP;
       var values = new Dictionary<string, string>
       {
       };
       var content = new FormUrlEncodedContent(values);
       var response = await client.PostAsync(url, content);
-      var responseString = await response.Content.ReadAsStringAsync();
-      return responseString;
+      var res = await response.Content.ReadAsStringAsync();
+      var longAndLat = JsonConvert.DeserializeObject<LongAndLat>(res);
+      return new Dictionary<string, string>
+      {
+        {"longitude", longAndLat.longitude },
+        {"latitude", longAndLat.latitude }
+      };
+    }
+
+    public static async Task<string> GetWeather(string latitude, string longitude)
+    {
+      string url = $"http://api.openweathermap.org/data/2.5/weather?lat={latitude}&lon={longitude}139&appid=0068e0a7d4f9bdd04a3f953df13dea07";
+      var values = new Dictionary<string, string>
+      {
+      };
+      var content = new FormUrlEncodedContent(values);
+      var response = await client.PostAsync(url, content);
+      var res = await response.Content.ReadAsStringAsync();
+      return res;
+    }
+
+    public class LongAndLat
+    {
+      public string longitude { get; set; }
+      public string latitude { get; set; }
+    }
+    public class FunctionInput
+    {
+      public string IP { get; set; }
     }
   }
 }
