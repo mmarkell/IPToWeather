@@ -21,9 +21,11 @@ namespace mm116.Function
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
             ILogger log)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
-            string IP = req.Query.ContainsKey("IP") ? req.Query["IP"].ToString() : "107.77.211.143";
-            log.LogInformation($"getting IP {IP}");
+            if (!req.Query.ContainsKey("IP"))
+            {
+                return (ActionResult)new OkObjectResult("{Error: IP param required}");
+            }
+            string IP = req.Query["IP"].ToString();
             LongAndLat long_and_lat = await GetLongitudeAndLatitude(IP, log);
             string latitude = long_and_lat.latitude;
             string longitude = long_and_lat.longitude;
